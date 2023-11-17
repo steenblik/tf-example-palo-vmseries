@@ -5,91 +5,134 @@ locals {
     "preprod-internal",
     "prod-external",
     "prod-internal",
-    "test",
+    "nonprod-internal",
     "partner"
   ]
-  ew_iface_order = concat([
-    "management",
-    "hybrid",
-  ], local._common_nets)
-  ns_iface_order = concat([
-    "management",
-    "internet",
-  ], local._common_nets)
+  iface_order = {
+    ew = concat([
+      "management",
+      "hybrid",
+    ], local._common_nets)
+    ns = concat([
+      "management",
+      "internet",
+    ], local._common_nets)
+  }
+  ilb_addresses = { for k, v in var.network_cfgs : k => {
+    for vpc, data in v : vpc => data.ilb_address if data.ilb_address != null
+  } }
+  instance_addresses = { for k, v in var.network_cfgs : k => {
+    for vpc, data in v : vpc => data.instance_addresses
+  } }
+}
+
+// This bit could be done in the base network stage and used to populate firewall rules
+module "fw_service_account" {
+  source     = "../../../../../modules/iam-service-account"
+  name       = "palo-fw-sa"
+  project_id = var.project_id
+}
+
+// One shared healthcheck. This could be split by ew & ns to maintain independence within TF
+resource "google_compute_region_health_check" "check" {
+  project = var.project_id
+  name    = "palo-healthcheck-${var.region}"
+  region  = var.region
+  log_config {
+    enable = true
+  }
+  tcp_health_check {
+    port = 80
+  }
 }
 
 module "east_west_vmseries" {
+  for_each   = toset(["ew"])
   source     = "../../"
   project_id = var.project_id
   region     = var.region
-  ilb = {
-    name    = "vmseries-ew-${var.region}"
-    address = var.ilb_addresses.ew
-    vpc_config = {
-      network    = var.vpc_self_links.hybrid
-      subnetwork = var.subnet_self_links.hybrid
+  ilbs = { for vpc, addr in local.ilb_addresses[each.key] : vpc =>
+    {
+      name    = "vmseries-${each.key}-${var.region}-${vpc}"
+      address = addr
+      vpc_config = {
+        network    = var.vpc_self_links[vpc]
+        subnetwork = var.subnet_self_links[vpc]
+      }
+      health_check = google_compute_region_health_check.check.self_link
     }
-    health_check_port = var.health_check_port
   }
   palo_bootstrap_options = var.palo_bootstrap_options
   instances = {
-    vmseries-ew-prod-0 = {
+    "fw-${each.key}-${var.region}-0" = {
       network_interfaces = [
-        for net in local.ew_iface_order : {
-          network    = var.vpc_self_links[net]
-          subnetwork = var.subnet_self_links[net]
-          address    = var.instance_addresses.ew[net][0]
+        for vpc in local.iface_order[each.key] : {
+          network    = var.vpc_self_links[vpc]
+          subnetwork = var.subnet_self_links[vpc]
+          address    = local.instance_addresses[each.key][vpc][0]
         }
       ]
-      zone = "${var.region}-a"
+      network_tags          = ["palo-fw"]
+      service_account_email = module.fw_service_account.email
+      zone                  = "${var.region}-a"
     }
-    vmseries-ew-prod-1 = {
+    "fw-${each.key}-${var.region}-1" = {
       network_interfaces = [
-        for net in local.ew_iface_order : {
-          network    = var.vpc_self_links[net]
-          subnetwork = var.subnet_self_links[net]
-          address    = var.instance_addresses.ew[net][1]
+        for vpc in local.iface_order[each.key] : {
+          network    = var.vpc_self_links[vpc]
+          subnetwork = var.subnet_self_links[vpc]
+          address    = local.instance_addresses[each.key][vpc][1]
         }
       ]
-      zone = "${var.region}-b"
+      network_tags          = ["palo-fw"]
+      service_account_email = module.fw_service_account.email
+      zone                  = "${var.region}-b"
     }
   }
 }
 
+// This is seperate so that we can use different module versions
 module "north_south_vmseries" {
+  for_each   = toset(["ns"])
   source     = "../../"
   project_id = var.project_id
   region     = var.region
-  ilb = {
-    name    = "vmseries-ns-${var.region}"
-    address = var.ilb_addresses.ns
-    vpc_config = {
-      network    = var.vpc_self_links.internet
-      subnetwork = var.subnet_self_links.internet
+  ilbs = { for vpc, addr in local.ilb_addresses[each.key] : vpc =>
+    {
+      name    = "vmseries-${each.key}-${var.region}-${vpc}"
+      address = addr
+      vpc_config = {
+        network    = var.vpc_self_links[vpc]
+        subnetwork = var.subnet_self_links[vpc]
+      }
+      health_check = google_compute_region_health_check.check.self_link
     }
-    health_check_port = var.health_check_port
   }
   palo_bootstrap_options = var.palo_bootstrap_options
   instances = {
-    vmseries-ns-prod-0 = {
+    "fw-${each.key}-${var.region}-0" = {
       network_interfaces = [
-        for net in local.ns_iface_order : {
-          network    = var.vpc_self_links[net]
-          subnetwork = var.subnet_self_links[net]
-          address    = var.instance_addresses.ns[net][0]
+        for vpc in local.iface_order[each.key] : {
+          network    = var.vpc_self_links[vpc]
+          subnetwork = var.subnet_self_links[vpc]
+          address    = local.instance_addresses[each.key][vpc][0]
         }
       ]
-      zone = "${var.region}-a"
+      network_tags          = ["palo-fw"]
+      service_account_email = module.fw_service_account.email
+      zone                  = "${var.region}-a"
     }
-    vmseries-ns-prod-1 = {
+    "fw-${each.key}-${var.region}-1" = {
       network_interfaces = [
-        for net in local.ns_iface_order : {
-          network    = var.vpc_self_links[net]
-          subnetwork = var.subnet_self_links[net]
-          address    = var.instance_addresses.ns[net][1]
+        for vpc in local.iface_order[each.key] : {
+          network    = var.vpc_self_links[vpc]
+          subnetwork = var.subnet_self_links[vpc]
+          address    = local.instance_addresses[each.key][vpc][1]
         }
       ]
-      zone = "${var.region}-b"
+      network_tags          = ["palo-fw"]
+      service_account_email = module.fw_service_account.email
+      zone                  = "${var.region}-b"
     }
   }
 }

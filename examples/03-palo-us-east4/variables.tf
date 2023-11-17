@@ -1,32 +1,9 @@
-variable "health_check_port" {
-  description = "The port the ILB will use to check for VM health."
-  type        = string
-  default     = "80"
-}
-
-variable "ilb_addresses" {
-  description = "An object containing the IP addresses for the ILBs."
-  type = object({
-    ew = string
-    ns = string
-  })
-  nullable = false
-}
-
-variable "instance_addresses" {
-  description = "IP addresses for the 0th and 1st vmseries instances."
-  type = map(object({
-    hybrid           = optional(list(string))
-    internet         = optional(list(string))
-    management       = list(string)
-    preprod-external = list(string)
-    preprod-internal = list(string)
-    partner          = list(string)
-    prod-external    = list(string)
-    prod-internal    = list(string)
-    test             = list(string)
-  }))
-  nullable = false
+variable "network_cfgs" {
+  description = "Addresses and port info for each of the legs of the Palo Alto devices"
+  type = map(map(object({
+    instance_addresses = list(string)
+    ilb_address        = optional(string)
+  })))
 }
 
 variable "palo_bootstrap_options" {
@@ -65,7 +42,7 @@ variable "subnet_self_links" {
     preprod-internal = string
     prod-external    = string
     prod-internal    = string
-    test             = string
+    nonprod-internal = string
   })
   nullable = false
 }
@@ -81,6 +58,6 @@ variable "vpc_self_links" {
     preprod-internal = string
     prod-external    = string
     prod-internal    = string
-    test             = string
+    nonprod-internal = string
   })
 }

@@ -24,18 +24,18 @@ variable "region" {
   nullable    = false
 }
 
-variable "ilb" {
-  description = "A configuration object for the ILB."
-  type = object({
-    name              = string
-    address           = string
-    ports             = optional(list(string))
-    health_check_port = string
+variable "ilbs" {
+  description = "A configuration object for the ILBs associated with the vmseries instances."
+  type = map(object({
+    name         = string
+    address      = string
+    ports        = optional(list(string)) # Null forwards all ports
+    health_check = string
     vpc_config = object({
       network    = string
       subnetwork = string
     })
-  })
+  }))
   nullable = false
 }
 
@@ -47,14 +47,15 @@ variable "instances" {
       subnetwork = string
       address    = string
     }))
-    boot_disk_size = optional(number, 100)
-    boot_disk_type = optional(string, "pd-balanced")
-    image          = optional(string, "https://www.googleapis.com/compute/v1/projects/paloaltonetworksgcp-public/global/images/vmseries-byol-913")
-    labels         = optional(map(string), {})
-    network_tags   = optional(list(string), [])
-    tags           = optional(list(string), [])
-    vm_type        = optional(string, "n2-standard-8")
-    zone           = string
+    boot_disk_size        = optional(number, 100)
+    boot_disk_type        = optional(string, "pd-balanced")
+    image                 = optional(string, "https://www.googleapis.com/compute/v1/projects/paloaltonetworksgcp-public/global/images/vmseries-byol-913")
+    labels                = optional(map(string), {})
+    network_tags          = optional(list(string), [])
+    secure_tags           = optional(map(string), {}) # These are resource manager tags
+    service_account_email = string
+    vm_type               = optional(string, "n2-standard-8")
+    zone                  = string
   }))
   nullable = false
 }

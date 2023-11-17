@@ -10,9 +10,10 @@ module "vmseries-instances" {
     }
   }
   can_ip_forward = true
-  group          = { named_ports = { http = "80", app42 = "4242" } }
-  instance_type  = each.value.vm_type
-  labels         = each.value.labels
+  # What are these values for palos
+  group         = { named_ports = { http = "80", app42 = "4242" } }
+  instance_type = each.value.vm_type
+  labels        = each.value.labels
   metadata = merge(
     {
       // https://docs.paloaltonetworks.com/vm-series/11-0/vm-series-deployment/bootstrap-the-vm-series-firewall/create-the-init-cfgtxt-file/init-cfgtxt-file-components#id07933d91-15be-414d-bc8d-f2a5f3d8df6b
@@ -33,27 +34,29 @@ EOF
     iface, { addresses = { internal = iface.address } }
   )]
   service_account = {
-    auto_create = true
+    email = each.value.service_account_email
   }
-  tags = each.value.network_tags
-  zone = each.value.zone
+  tag_bindings = each.value.secure_tags
+  tags         = each.value.network_tags
+  zone         = each.value.zone
 }
 
 module "vmseries-ilb" {
   source     = "../../../modules/net-lb-int"
+  for_each   = var.ilbs
   project_id = var.project_id
   region     = var.region
-  name       = var.ilb.name
+  name       = each.value.name
   forwarding_rules_config = {
     ipv4 = {
       # version = "IPV4"
-      address  = var.ilb.address
-      ports    = var.ilb.ports
+      address  = each.value.address
+      ports    = each.value.ports
       protocol = "L3_DEFAULT"
     }
 
   }
-  vpc_config = var.ilb.vpc_config
+  vpc_config = each.value.vpc_config
   backends = [for k, v in module.vmseries-instances : {
     group = module.vmseries-instances["${k}"].group.self_link
   }]
@@ -63,9 +66,5 @@ module "vmseries-ilb" {
     timeout_sec      = 10
   }
 
-  health_check_config = {
-    tcp = {
-      port = var.ilb.health_check_port
-    }
-  }
+  health_check = each.value.health_check
 }
