@@ -41,6 +41,18 @@ EOF
   zone         = each.value.zone
 }
 
+resource "google_compute_region_health_check" "this" {
+  project = var.project_id
+  name    = "palo-healthcheck-${var.region}"
+  region  = var.region
+  log_config {
+    enable = true
+  }
+  tcp_health_check {
+    port = 80
+  }
+}
+
 module "vmseries-ilb" {
   source     = "../../../modules/net-lb-int"
   for_each   = var.ilbs
@@ -66,5 +78,5 @@ module "vmseries-ilb" {
     timeout_sec      = 10
   }
 
-  health_check = each.value.health_check
+  health_check = google_compute_region_health_check.this.self_link
 }

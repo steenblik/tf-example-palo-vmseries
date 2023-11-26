@@ -33,19 +33,6 @@ module "fw_service_account" {
   project_id = var.project_id
 }
 
-// One shared healthcheck. This could be split by ew & ns to maintain independence within TF
-resource "google_compute_region_health_check" "check" {
-  project = var.project_id
-  name    = "palo-healthcheck-${var.region}"
-  region  = var.region
-  log_config {
-    enable = true
-  }
-  tcp_health_check {
-    port = 80
-  }
-}
-
 module "east_west_vmseries" {
   for_each   = toset(["ew"])
   source     = "../../"
@@ -59,7 +46,6 @@ module "east_west_vmseries" {
         network    = var.vpc_self_links[vpc]
         subnetwork = var.subnet_self_links[vpc]
       }
-      health_check = google_compute_region_health_check.check.self_link
     }
   }
   palo_bootstrap_options = var.palo_bootstrap_options
@@ -105,7 +91,6 @@ module "north_south_vmseries" {
         network    = var.vpc_self_links[vpc]
         subnetwork = var.subnet_self_links[vpc]
       }
-      health_check = google_compute_region_health_check.check.self_link
     }
   }
   palo_bootstrap_options = var.palo_bootstrap_options

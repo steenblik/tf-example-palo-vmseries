@@ -30,7 +30,6 @@ variable "ilbs" {
     name         = string
     address      = string
     ports        = optional(list(string)) # Null forwards all ports
-    health_check = string
     vpc_config = object({
       network    = string
       subnetwork = string
