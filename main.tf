@@ -41,21 +41,26 @@ EOF
   zone         = each.value.zone
 }
 
-module "vmseries-ilb" {
-  source     = "../../../modules/net-lb-int"
-  for_each   = var.ilbs
-  project_id = var.project_id
-  region     = var.region
-  name       = each.value.name
-  forwarding_rules_config = {
-    ipv4 = {
-      # version = "IPV4"
-      address  = each.value.address
-      ports    = each.value.ports
-      protocol = "L3_DEFAULT"
-    }
-
+resource "google_compute_region_health_check" "this" {
+  project = var.project_id
+  name    = "palo-healthcheck-${var.region}"
+  region  = var.region
+  log_config {
+    enable = true
   }
+  tcp_health_check {
+    port = 80
+  }
+}
+
+module "vmseries-ilb" {
+  source        = "../../../modules/net-lb-int"
+  for_each      = var.ilbs
+  project_id    = var.project_id
+  region        = var.region
+  name          = each.value.name
+  address       = each.value.address
+  global_access = true
   vpc_config = each.value.vpc_config
   backends = [for k, v in module.vmseries-instances : {
     group = module.vmseries-instances["${k}"].group.self_link
@@ -65,6 +70,5 @@ module "vmseries-ilb" {
     session_affinity = "CLIENT_IP"
     timeout_sec      = 10
   }
-
-  health_check = each.value.health_check
+  health_check = google_compute_region_health_check.this.self_link
 }

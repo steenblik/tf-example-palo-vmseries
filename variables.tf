@@ -27,10 +27,9 @@ variable "region" {
 variable "ilbs" {
   description = "A configuration object for the ILBs associated with the vmseries instances."
   type = map(object({
-    name         = string
-    address      = string
-    ports        = optional(list(string)) # Null forwards all ports
-    health_check = string
+    name    = string
+    address = string
+    ports   = optional(list(string)) # Null forwards all ports
     vpc_config = object({
       network    = string
       subnetwork = string
